@@ -1,19 +1,36 @@
 package com.cc221019.demo_two.ui.views
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.BottomNavigation
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialogDefaults.shape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -30,10 +47,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,53 +65,75 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cc221019.demo_two.data.BccStudent
-import com.cc221019.demo_two.model.MainViewModel
+import androidx.compose.ui.window.PopupProperties
+import com.cc221019.demo_two.ui.views.model.MainViewModel
 import com.cc221019.demo_two.R
+import com.cc221019.demo_two.data.Debt
+import com.cc221019.demo_two.data.Person
+
+sealed class Screen(val route: String){
+    object First: Screen("first")
+    object Second: Screen("second")
+    object Third: Screen("third")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(mainViewModel: MainViewModel){
+    val state = mainViewModel.mainViewState.collectAsState()
     val navController = rememberNavController()
+
     Scaffold(
-        bottomBar = {BottomNavigationBar(navController)}
+        bottomBar = {BottomNavigationBar(navController, state.value.selectedScreen)}
     ) {
         NavHost(
             navController = navController,
             modifier = Modifier.padding(it),
-            startDestination = "first"
+            startDestination = Screen.First.route
         ){
-            composable("first"){ mainScreen(mainViewModel) }
-            composable("second"){ displayValues(mainViewModel) }
+            composable(Screen.First.route){
+                mainViewModel.selectScreen(Screen.First)
+                mainScreen(mainViewModel)
+            }
+            composable(Screen.Second.route){
+                mainViewModel.selectScreen(Screen.Second)
+                mainViewModel.getPeople()
+                mainViewModel.getDebts()
+                displayDebts(mainViewModel)
+            }
+            composable(Screen.Third.route){
+                mainViewModel.selectScreen(Screen.Third)
+                mainViewModel.getPeople()
+                mainViewModel.getDebts()
+                displayPeople(mainViewModel)
+            }
         }
     }
 }
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController){
-    BottomNavigation (backgroundColor = MaterialTheme.colorScheme.primary) {
+fun BottomNavigationBar(navController: NavHostController, selectedScreen: Screen){
+    BottomNavigation (
+        backgroundColor = MaterialTheme.colorScheme.primary
+    ) {
         NavigationBarItem(
-            selected = true,
-            onClick = { navController.navigate("first") },
+            selected = (selectedScreen == Screen.First),
+            onClick = { navController.navigate(Screen.First.route) },
             icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "") })
 
         NavigationBarItem(
-            selected = false,
-            onClick = { navController.navigate("second") },
+            selected = (selectedScreen == Screen.Second),
+            onClick = { navController.navigate(Screen.Second.route) },
+            icon = { Icon(imageVector = Icons.Default.ShoppingCart, contentDescription = "") })
+        NavigationBarItem(
+            selected = (selectedScreen == Screen.Third),
+            onClick = { navController.navigate(Screen.Third.route) },
             icon = { Icon(imageVector = Icons.Default.AccountBox, contentDescription = "") })
-
     }
 }
 
-sealed class Screen(val route: String){
-    object First: Screen("first")
-    object Second: Screen("second")
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun mainScreen(mainViewModel: MainViewModel){
-    var name by remember { mutableStateOf(TextFieldValue("")) }
-    var uid by remember { mutableStateOf(TextFieldValue("")) }
 
     Column (
         modifier = Modifier
@@ -98,53 +142,51 @@ fun mainScreen(mainViewModel: MainViewModel){
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "StateFlow", fontSize = 50.sp,  style = TextStyle(fontFamily = FontFamily.Cursive))
+        Text(
+            text = stringResource(R.string.mainscreen_title),
+            fontSize = 50.sp,
+            style = TextStyle(fontFamily = FontFamily.Monospace)
+        )
+
+        Spacer(
+            modifier = Modifier.height(50.dp)
+        )
+
         Image(
-            painter = painterResource(id = R.drawable.ic_launcher_foreground),
-            contentDescription = "Box"
-        )
-        Spacer(modifier = Modifier.height(50.dp))
-
-        TextField(
-            value = name,
-            onValueChange = {
-                    newText -> name = newText
-            },
-            label = { Text(text = "Name" ) }
+            modifier = Modifier.size(300.dp),
+            painter = painterResource(id = R.drawable.broken_leg_svgrepo_com),
+            contentDescription = "A broken leg in a cast"
         )
 
-        TextField(
-            modifier = Modifier.padding(top = 20.dp),
-            value = uid,
-            onValueChange = {
-                    newText -> uid = newText
-            },
-            label = { Text(text = "UID") }
+        Spacer(
+            modifier = Modifier.height(50.dp)
         )
-
-        Button(
-            onClick = { mainViewModel.save(BccStudent(name.text,uid.text)) },
-            modifier = Modifier.padding(top = 20.dp)
-        ) {
-            Text(text = "Send", fontSize = 20.sp)
-        }
     }
 }
 
+
+
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun displayValues(mainViewModel: MainViewModel){
-    val student = mainViewModel.bccStudentState.collectAsState()
-    var name by rememberSaveable { mutableStateOf(student.value.name) }
-    var uid by rememberSaveable { mutableStateOf(student.value.uid) }
+fun NumberInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: @Composable (() -> Unit)? = null
+) {
+    var text by rememberSaveable { mutableStateOf(value) }
 
-    Column (
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Text(text = "BCC Student:",fontWeight = FontWeight.Bold)
-        Text(text = "Name: $name")
-        Text(text = "UID: $uid")
-    }
+    TextField(
+        value = text,
+        onValueChange = { newText ->
+            if (newText.matches("^-?\\d*(\\.\\d*)?$".toRegex())) { // Only accept the input if all characters are digits.
+                text = newText
+                onValueChange(newText)
+            }
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        label = label,
+        modifier = modifier
+    )
 }
-
